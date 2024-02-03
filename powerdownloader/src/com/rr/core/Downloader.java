@@ -2,6 +2,7 @@ package com.rr.core;
 
 import com.rr.constant.Constant;
 import com.rr.utils.HttpUtils;
+import com.rr.utils.LogUtils;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -30,11 +31,10 @@ public class Downloader {
                 bos.write(len);
             }
         } catch (FileNotFoundException e) {
-            e.printStackTrace();
-            System.out.println("Download file not exist");
+            LogUtils.error("Download file not exist:{}", url);
         } catch (Exception e) {
             e.printStackTrace();
-            System.out.println("Failed to download");
+            LogUtils.error("Failed to download");
         } finally {
             if(httpURLConnection != null) {
                 httpURLConnection.disconnect();
