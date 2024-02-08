@@ -13,8 +13,7 @@ import java.util.concurrent.*;
 public class Downloader {
 
     public ScheduledExecutorService service = Executors.newScheduledThreadPool(1);
-    public ThreadPoolExecutor poolExecutor = new ThreadPoolExecutor(Constant.THREAD_NUM, Constant.THREAD_NUM, 0,
-            TimeUnit.SECONDS, new ArrayBlockingQueue<>(Constant.THREAD_NUM));
+    public ThreadPoolExecutor poolExecutor = new ThreadPoolExecutor(Constant.THREAD_NUM, Constant.THREAD_NUM, 0, TimeUnit.SECONDS, new ArrayBlockingQueue<>(Constant.THREAD_NUM));
 
     public void download(String url) {
         String httpFileName = HttpUtils.getHttpFileName(url);
@@ -54,6 +53,11 @@ public class Downloader {
                     e.printStackTrace();
                 }
             });
+
+            // Merge file
+           if ( concat(httpFileName)) {
+               clearTempFiles(httpFileName);
+           }
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
@@ -104,4 +108,34 @@ public class Downloader {
             e.printStackTrace();
         }
     }
+
+    public boolean concat(String fileName) {
+        LogUtils.info("Start to merge file {}", fileName);
+
+        byte[] buffer = new byte[Constant.BYTE_SIZE];
+        int len = -1;
+        try (RandomAccessFile accessFile = new RandomAccessFile(fileName, "rw")) {
+            for (int i = 0; i < Constant.THREAD_NUM; i++) {
+                try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(fileName + ".temp" + i))) {
+                    while ((len = bis.read(buffer)) != -1) {
+                        accessFile.write(buffer ,0, len);
+                    }
+                }
+            }
+            LogUtils.info("Complete file merge {}", fileName);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+
+    public boolean clearTempFiles(String fileName) {
+        for (int i = 0; i < Constant.THREAD_NUM; i++) {
+            File file = new File(fileName + ".temp" + i);
+            file.delete();
+        }
+        return true;
+    }
+
 }
