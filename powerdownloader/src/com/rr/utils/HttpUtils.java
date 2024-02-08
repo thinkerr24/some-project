@@ -10,6 +10,26 @@ import java.net.URL;
 public class HttpUtils {
 
     /**
+     *  Get download file size
+     * @param url
+     * @return
+     * @throws IOException
+     */
+    public static long getHttpFileContentLength(String url) throws IOException {
+        HttpURLConnection httpURLConnection = null;
+        int contentLength = 0;
+        try {
+            httpURLConnection = getHttpURLConnection(url);
+            contentLength = httpURLConnection.getContentLength();
+        } finally {
+            if (httpURLConnection != null) {
+                httpURLConnection.disconnect();
+            }
+        }
+        return contentLength;
+    }
+
+    /**
      * Chunk download
      *
      * @param url      file url

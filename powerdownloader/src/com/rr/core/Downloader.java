@@ -7,13 +7,14 @@ import com.rr.utils.LogUtils;
 
 import java.io.*;
 import java.net.HttpURLConnection;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.concurrent.*;
 
 public class Downloader {
 
     public ScheduledExecutorService service = Executors.newScheduledThreadPool(1);
+    public ThreadPoolExecutor poolExecutor = new ThreadPoolExecutor(Constant.THREAD_NUM, Constant.THREAD_NUM, 0,
+            TimeUnit.SECONDS, new ArrayBlockingQueue<>(Constant.THREAD_NUM));
 
     public void download(String url) {
         String httpFileName = HttpUtils.getHttpFileName(url);
@@ -34,7 +35,7 @@ public class Downloader {
             // Judge if file downloaded(exist)
             if (localFileLength >= contentLength) {
                 LogUtils.info("******{} has been downloaded, there is no need to re-download!******", httpFileName);
-                return ;
+                return;
             }
 
             // Get download info
@@ -42,32 +43,62 @@ public class Downloader {
             // Apply thread to execute the task, one second everytime
             service.scheduleAtFixedRate(downloadInfoThread, 1, 1, TimeUnit.SECONDS);
 
+            // split task
+            ArrayList<Future> list = new ArrayList<>();
+            split(url, list);
+
+            list.forEach(future -> {
+                try {
+                    future.get();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
         } catch (IOException e) {
             e.printStackTrace();
-        }
-
-        try (InputStream input = httpURLConnection.getInputStream();
-             BufferedInputStream bis = new BufferedInputStream(input);
-             FileOutputStream fos = new FileOutputStream(httpFileName);
-             BufferedOutputStream bos = new BufferedOutputStream(fos);
-        ) {
-            int len = -1;
-            byte[] buffer = new byte[Constant.BYTE_SIZE];
-            while ((len = bis.read(buffer)) != -1) {
-                downloadInfoThread.downSize += len;
-                bos.write(buffer, 0, len);
-            }
-        } catch (FileNotFoundException e) {
-            LogUtils.error("Download file not exist:{}", url);
-        } catch (Exception e) {
-            e.printStackTrace();
-            LogUtils.error("Failed to download");
         } finally {
             System.out.println();
             if (httpURLConnection != null) {
                 httpURLConnection.disconnect();
             }
             service.shutdownNow();
+        }
+    }
+
+    public void split(String url, ArrayList<Future> futureList) {
+        // Get download file size
+        try {
+            long contentLength = HttpUtils.getHttpFileContentLength(url);
+
+            // Calculate file size after chunk
+            long size = contentLength / Constant.THREAD_NUM;
+
+            // Calculate chunk num
+            for (int i = 0; i < Constant.THREAD_NUM; i++) {
+                // Calculate download start&end position
+                long startPos = i * size;
+                long endPos;
+                if (i == Constant.THREAD_NUM - 1) {
+                    // Download last chunk
+                    endPos = 0;
+                } else {
+                    endPos = startPos + size;
+                }
+
+                // Add position 1 if there is not first chunk
+                if (startPos != 0) {
+                    startPos++;
+                }
+
+                // Create task
+                DownloaderTask downloaderTask = new DownloaderTask(url, startPos, endPos, i);
+
+                // Commit task to thread pool
+                Future<Boolean> future = poolExecutor.submit(downloaderTask);
+                futureList.add(future);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 }
