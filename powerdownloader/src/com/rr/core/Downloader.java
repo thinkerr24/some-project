@@ -62,6 +62,9 @@ public class Downloader {
                 httpURLConnection.disconnect();
             }
             service.shutdownNow();
+
+            // Close thread pool
+            poolExecutor.shutdown();
         }
     }
 

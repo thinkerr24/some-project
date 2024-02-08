@@ -52,7 +52,9 @@ public class DownloaderTask implements Callable<Boolean> {
 
             byte[] buffer = new byte[Constant.BYTE_SIZE];
             int len = -1;
-            while ((len = bis.read()) != -1) {
+            while ((len = bis.read(buffer)) != -1) {
+                // Download size in 1 second, operate by atomic class
+                DownloadInfoThread.downSize.add(len);
                 accessFile.write(buffer, 0, len);
             }
         } catch (FileNotFoundException e) {
