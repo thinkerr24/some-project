@@ -15,6 +15,8 @@ public class Downloader {
     public ScheduledExecutorService service = Executors.newScheduledThreadPool(1);
     public ThreadPoolExecutor poolExecutor = new ThreadPoolExecutor(Constant.THREAD_NUM, Constant.THREAD_NUM, 0, TimeUnit.SECONDS, new ArrayBlockingQueue<>(Constant.THREAD_NUM));
 
+    private CountDownLatch countDownLatch = new CountDownLatch(Constant.THREAD_NUM);
+
     public void download(String url) {
         String httpFileName = HttpUtils.getHttpFileName(url);
         // Full path for downloaded file
@@ -46,19 +48,13 @@ public class Downloader {
             ArrayList<Future> list = new ArrayList<>();
             split(url, list);
 
-            list.forEach(future -> {
-                try {
-                    future.get();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
+            countDownLatch.await();
 
             // Merge file
            if ( concat(httpFileName)) {
                clearTempFiles(httpFileName);
            }
-        } catch (IOException e) {
+        } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         } finally {
             System.out.println();
@@ -98,7 +94,7 @@ public class Downloader {
                 }
 
                 // Create task
-                DownloaderTask downloaderTask = new DownloaderTask(url, startPos, endPos, i);
+                DownloaderTask downloaderTask = new DownloaderTask(url, startPos, endPos, i, countDownLatch);
 
                 // Commit task to thread pool
                 Future<Boolean> future = poolExecutor.submit(downloaderTask);
